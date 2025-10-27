@@ -109,7 +109,9 @@ def setup():
     )
     core_utils.sudo(
         "neutron-db-manage",
-        ["--config-file", CONF, "--config-file", ML2_CONF, "upgrade", "head"],
+        ["--config-file", CONF,
+         "--config-file", ML2_CONF,
+         "upgrade", "--verbose", "head"],
         user="neutron",
     )
     core_utils.restart_service("neutron-server")
