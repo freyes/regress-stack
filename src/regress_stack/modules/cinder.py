@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 
 import pathlib
+import re
 import subprocess
 
 from regress_stack.core import apt as core_apt
@@ -16,7 +17,8 @@ LOGS = ["/var/log/cinder/"]
 CONF = "/etc/cinder/cinder.conf"
 URL = f"http://{core_utils.my_ip()}:8776/v3/%(project_id)s"
 SERVICE = "cinder"
-SERVICE_TYPE = "volumev3"
+_LEGACY_SERVICE_TYPE = "volumev3"
+_SERVICE_TYPE = "block-storage"
 VOLUME_POOL = "volumes"
 VOLUME_USER = VOLUME_POOL
 CINDER_ROOTWRAP = pathlib.Path("/usr/bin/cinder-rootwrap")
@@ -24,6 +26,28 @@ CINDER_SUDOERS = pathlib.Path("/etc/sudoers.d/regress-stack-cinder-rootwrap")
 CINDER_PRIVSEP_HELPER = (
     "sudo /usr/bin/cinder-rootwrap /etc/cinder/rootwrap.conf privsep-helper"
 )
+_TEMPEST_SERVICE_TYPE_VERSION = (42, 0, 0)
+
+
+def get_service_type():
+    version = _tempest_version()
+    if version is not None and version >= _TEMPEST_SERVICE_TYPE_VERSION:
+        return _SERVICE_TYPE
+    return _LEGACY_SERVICE_TYPE
+
+
+def _tempest_version():
+    try:
+        return _parse_tempest_version(core_utils.run("tempest", ["--version"]))
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return None
+
+
+def _parse_tempest_version(output: str):
+    match = re.search(r"\b(\d+)\.(\d+)(?:\.(\d+))?\b", output)
+    if match is None:
+        return None
+    return (int(match.group(1)), int(match.group(2)), int(match.group(3) or 0))
 
 
 def installed() -> bool:
@@ -33,7 +57,9 @@ def installed() -> bool:
 def setup():
     db_user, db_pass = mysql.ensure_service(SERVICE)
     rabbit_user, rabbit_pass = rabbitmq.ensure_service(SERVICE)
-    username, password = keystone.ensure_service_account(SERVICE, SERVICE_TYPE, URL)
+    username, password = keystone.ensure_service_account(
+        SERVICE, get_service_type(), URL
+    )
     pool = ceph.ensure_pool(VOLUME_POOL)
     ceph.ensure_authenticate(VOLUME_POOL, SERVICE)
     core_utils.run(
