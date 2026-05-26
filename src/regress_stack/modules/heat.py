@@ -137,11 +137,20 @@ def configure_tempest(tempest_conf: pathlib.Path):
         *module_utils.dict_to_cfg_set_args(
             "heat_plugin",
             {
+                "auth_url": keystone.OS_AUTH_URL,
+                "username": keystone.ADMIN_USERNAME,
+                "password": keystone.ADMIN_PASSWORD,
+                "admin_username": keystone.ADMIN_USERNAME,
+                "admin_password": keystone.ADMIN_PASSWORD,
+                "project_name": demo_project.name,
+                "admin_project_name": keystone.ADMIN_PROJECT,
+                "user_domain_name": keystone.DEFAULT_DOMAIN_NAME,
+                "project_domain_name": keystone.DEFAULT_DOMAIN_NAME,
+                "region": module_utils.REGION,
                 "network_for_ssh": neutron.EXTERNAL_NETWORK,
                 "fixed_network_name": heat_demo_network.name,
                 "floating_network_name": neutron.EXTERNAL_NETWORK,
                 "image_ssh_user": "ubuntu",
-                "project_name": demo_project.name,
             },
         ),
     )

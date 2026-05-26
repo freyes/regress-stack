@@ -23,6 +23,9 @@ LOGS = ["/var/log/keystone/"]
 
 CONF = "/etc/keystone/keystone.conf"
 ADMIN_PASSWORD = "changeme"
+ADMIN_USERNAME = "admin"
+ADMIN_PROJECT = "admin"
+DEFAULT_DOMAIN_NAME = "Default"
 OS_AUTH_URL = f"http://{core_utils.my_ip()}:5000/v3/"
 SERVICE_DOMAIN = "service"
 SERVICE_PROJECT = "service"
@@ -108,11 +111,11 @@ def setup():
 
 def auth_env() -> typing.Dict[str, str]:
     return {
-        "OS_USERNAME": "admin",
+        "OS_USERNAME": ADMIN_USERNAME,
         "OS_PASSWORD": ADMIN_PASSWORD,
-        "OS_PROJECT_NAME": "admin",
-        "OS_USER_DOMAIN_NAME": "Default",
-        "OS_PROJECT_DOMAIN_NAME": "Default",
+        "OS_PROJECT_NAME": ADMIN_PROJECT,
+        "OS_USER_DOMAIN_NAME": DEFAULT_DOMAIN_NAME,
+        "OS_PROJECT_DOMAIN_NAME": DEFAULT_DOMAIN_NAME,
         "OS_AUTH_URL": OS_AUTH_URL,
         "OS_IDENTITY_API_VERSION": "3",
         "OS_REGION_NAME": utils.REGION,
@@ -177,13 +180,13 @@ def service_domain() -> str:
 @functools.lru_cache()
 def default_domain() -> str:
     conn = o7k()
-    return conn.identity.find_domain("Default").id
+    return conn.identity.find_domain(DEFAULT_DOMAIN_NAME).id
 
 
 @functools.lru_cache()
 def admin_user():
     conn = o7k()
-    return conn.identity.find_user("admin", domain_id=default_domain())
+    return conn.identity.find_user(ADMIN_USERNAME, domain_id=default_domain())
 
 
 def ensure_project(name: str, domain: str):
