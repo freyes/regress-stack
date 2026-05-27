@@ -109,6 +109,16 @@ def setup():
         heat_daemons.remove("heat-api-cfn")
         # heat-api and heat-api-cfn run as WSGI apps under apache2.
         heat_daemons.insert(0, "apache2")
+        # heat-api.conf ships with a wrong WSGI script path (/usr/bin/heat-api),
+        # while the script is actually installed at /usr/bin/heat-wsgi-api (LP #2155160).
+        core_utils.run(
+            "sed",
+            [
+                "-i",
+                r"s|WSGIScriptAlias / /usr/bin/heat-api$|WSGIScriptAlias / /usr/bin/heat-wsgi-api|",
+                "/etc/apache2/sites-available/heat-api.conf",
+            ],
+        )
 
     for _daemon in heat_daemons:
         core_utils.restart_service(_daemon)
