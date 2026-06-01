@@ -160,7 +160,7 @@ def setup():
             *module_utils.dict_to_cfg_set_args(
                 "cinder",
                 {
-                    "service_type": cinder.SERVICE_TYPE,
+                    "service_type": cinder.get_service_type(),
                     "service_name": cinder.SERVICE,
                     "region_name": utils.REGION,
                     "volume_api_version": "3",

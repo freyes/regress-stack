@@ -6,6 +6,48 @@ import subprocess
 from regress_stack.modules import cinder
 
 
+def test_get_service_type_block_storage(monkeypatch):
+    monkeypatch.setattr(cinder.core_utils, "run", lambda *_args, **_kwargs: "42.0.0\n")
+
+    assert cinder.get_service_type() == cinder._SERVICE_TYPE
+
+
+def test_get_service_type_legacy(monkeypatch):
+    monkeypatch.setattr(
+        cinder.core_utils, "run", lambda *_args, **_kwargs: "tempest 41.9.0\n"
+    )
+
+    assert cinder.get_service_type() == cinder._LEGACY_SERVICE_TYPE
+
+
+def test_get_service_type_legacy_on_tempest_command_failure(monkeypatch):
+    def raise_file_not_found(*_args, **_kwargs):
+        raise FileNotFoundError
+
+    monkeypatch.setattr(cinder.core_utils, "run", raise_file_not_found)
+
+    assert cinder.get_service_type() == cinder._LEGACY_SERVICE_TYPE
+
+
+def test_get_service_type_legacy_on_tempest_command_error(monkeypatch):
+    def raise_called_process_error(*_args, **_kwargs):
+        raise subprocess.CalledProcessError(1, ["tempest", "--version"])
+
+    monkeypatch.setattr(cinder.core_utils, "run", raise_called_process_error)
+
+    assert cinder.get_service_type() == cinder._LEGACY_SERVICE_TYPE
+
+
+def test_get_service_type_legacy_on_unparseable_version(monkeypatch):
+    monkeypatch.setattr(cinder.core_utils, "run", lambda *_args, **_kwargs: "tempest\n")
+
+    assert cinder.get_service_type() == cinder._LEGACY_SERVICE_TYPE
+
+
+def test_parse_tempest_version_accepts_missing_patch_version():
+    assert cinder._parse_tempest_version("tempest 42.1\n") == (42, 1, 0)
+
+
 def test_using_sudo_rs(monkeypatch):
     monkeypatch.setattr(
         cinder.subprocess,
