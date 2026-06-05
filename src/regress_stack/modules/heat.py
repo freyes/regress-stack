@@ -109,6 +109,16 @@ def setup():
         heat_daemons.remove("heat-api-cfn")
         # heat-api and heat-api-cfn run as WSGI apps under apache2.
         heat_daemons.insert(0, "apache2")
+        # heat-api.conf ships with a wrong WSGI script path (/usr/bin/heat-api),
+        # while the script is actually installed at /usr/bin/heat-wsgi-api (LP #2155160).
+        core_utils.run(
+            "sed",
+            [
+                "-i",
+                r"s|WSGIScriptAlias / /usr/bin/heat-api$|WSGIScriptAlias / /usr/bin/heat-wsgi-api|",
+                "/etc/apache2/sites-available/heat-api.conf",
+            ],
+        )
 
     for _daemon in heat_daemons:
         core_utils.restart_service(_daemon)
@@ -137,11 +147,20 @@ def configure_tempest(tempest_conf: pathlib.Path):
         *module_utils.dict_to_cfg_set_args(
             "heat_plugin",
             {
+                "auth_url": keystone.OS_AUTH_URL,
+                "username": keystone.ADMIN_USERNAME,
+                "password": keystone.ADMIN_PASSWORD,
+                "admin_username": keystone.ADMIN_USERNAME,
+                "admin_password": keystone.ADMIN_PASSWORD,
+                "project_name": demo_project.name,
+                "admin_project_name": keystone.ADMIN_PROJECT,
+                "user_domain_name": keystone.DEFAULT_DOMAIN_NAME,
+                "project_domain_name": keystone.DEFAULT_DOMAIN_NAME,
+                "region": module_utils.REGION,
                 "network_for_ssh": neutron.EXTERNAL_NETWORK,
                 "fixed_network_name": heat_demo_network.name,
                 "floating_network_name": neutron.EXTERNAL_NETWORK,
                 "image_ssh_user": "ubuntu",
-                "project_name": demo_project.name,
             },
         ),
     )

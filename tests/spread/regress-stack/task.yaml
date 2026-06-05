@@ -64,9 +64,7 @@ prepare: |
     chown -R $LOGNAME:$LOGNAME $SPREAD_PATH
   fi
   apt-get update
-
-  (set +o pipefail; apt-get -y install $PACKAGES |& tee packages.log || (grep -Pzo '(?s)rabbitmq-server\nneedrestart is being skipped since dpkg has failed' packages.log && systemctl status rabbitmq-server && cat /var/log/rabbitmq/*.log && systemctl restart rabbitmq-server && dpkg-reconfigure rabbitmq-server))
-  apt-get -f install
+  apt-get -y install $PACKAGES
 
   # Install regress-stack dependencies
   apt-get install -yq python3-pyroute2
@@ -74,10 +72,33 @@ prepare: |
   # Install packages declared by all modules.
   pushd $SPREAD_PATH/src
   if [ "${TEMPEST_SOURCE:-apt}" = snap ]; then
-    apt install -y $(python3 -m regress_stack packages --no-tempest)
+    REGRESS_PACKAGES=$(python3 -m regress_stack packages --no-tempest)
   else
-    apt install -y $(python3 -m regress_stack packages)
+    REGRESS_PACKAGES=$(python3 -m regress_stack packages)
   fi
+  # When rabbitmq-server is installed as part of this large batch, the
+  # systemd-sysusers trigger that creates the `rabbitmq` user can fire
+  # after rabbitmq-server's postinst tries to start the service. With
+  # the user missing, systemd refuses to launch the unit (Main PID
+  # exits with status=217/USER); Restart=on-failure then retries until
+  # the start-limit burst is hit ("Start request repeated too quickly")
+  # and the unit ends up failed.
+  # Recover both cases by entering the branch whenever apt failed or
+  # the unit is not active, then running `dpkg --configure -a` (which
+  # is a no-op when nothing is half-configured) plus a restart.
+  # apt-get -f install is the safety net.
+  set +e
+  apt-get -y install $REGRESS_PACKAGES
+  apt_status=$?
+  set -e
+  if [ $apt_status -ne 0 ] || ! systemctl is-active --quiet rabbitmq-server; then
+    systemctl status --no-pager rabbitmq-server || true
+    journalctl -u rabbitmq-server --no-pager -n 200 || true
+    systemctl reset-failed rabbitmq-server || true
+    dpkg --configure -a
+    systemctl restart rabbitmq-server
+  fi
+  apt-get -f install
   popd
 
   output=$(realpath ./prepare-output.txt)

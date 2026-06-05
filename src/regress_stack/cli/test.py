@@ -9,7 +9,6 @@ import pathlib
 import subprocess
 
 import regress_stack.modules
-from regress_stack.core import apt as core_apt
 from regress_stack.core import utils
 from regress_stack.core.modules import get_execution_order
 from regress_stack.modules import keystone
@@ -39,10 +38,6 @@ LOG = logging.getLogger(__name__)
 def test(concurrency, retry_failed):
     """Run the regression tests using Tempest."""
 
-    # NOTE(freyes): use PPA to fix http://pad.lv/2141604 if needed.
-    if core_apt.PkgVersionCompare("python3-tempestconf") < "3.5.1-1ubuntu1~cloud0":
-        core_apt.add_ppa("ppa:freyes/lp2141604")
-        utils.run("apt", ["install", "-yq", "--only-upgrade", "python3-tempestconf"])
     env = os.environ.copy()
     env.update(keystone.auth_env())
     dir_name = "mycloud01"
@@ -56,9 +51,33 @@ def test(concurrency, retry_failed):
     else:
         utils.run("tempest", ["init", dir_name])
 
+    # Write a clouds.yaml so discover-tempest-config can use --os-cloud.
+    # This avoids LP #2141604 where openstack.connect(argparse=...) conflicts
+    # with newer openstacksdk. The --os-cloud path uses
+    # openstack.connect(cloud=...) which works on all versions.
+    clouds_yaml = pathlib.Path(dir_name) / "clouds.yaml"
+    auth = keystone.auth_env()
+    clouds_yaml.write_text(
+        "clouds:\n"
+        "  regress:\n"
+        "    auth:\n"
+        f"      auth_url: {auth['OS_AUTH_URL']}\n"
+        f"      username: {auth['OS_USERNAME']}\n"
+        f"      password: {auth['OS_PASSWORD']}\n"
+        f"      project_name: {auth['OS_PROJECT_NAME']}\n"
+        f"      user_domain_name: {auth['OS_USER_DOMAIN_NAME']}\n"
+        f"      project_domain_name: {auth['OS_PROJECT_DOMAIN_NAME']}\n"
+        f"    region_name: {auth['OS_REGION_NAME']}\n"
+        f'    identity_api_version: "{auth["OS_IDENTITY_API_VERSION"]}"\n'
+    )
+    env["OS_CLIENT_CONFIG_FILE"] = str(clouds_yaml.resolve())
+
     utils.run(
         "discover-tempest-config",
         [
+            "--os-cloud",
+            "regress",
+            "--debug",
             "--create",
             "--flavor-min-mem",
             "1024",
