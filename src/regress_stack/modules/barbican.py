@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
+import os
 import pathlib
 import typing
 
@@ -110,3 +111,10 @@ def configure_tempest(tempest_conf: pathlib.Path):
         ("ephemeral_storage_encryption", "enabled", "True"),
         ("compute_feature_enabled", "attach_encrypted_volume", "True"),
     )
+    # The barbican scenario tests use CONF.scenario.img_file to locate
+    # the image for signing. discover-tempest-config sets it to a relative
+    # filename, but the scenario tests require a full path (Tempest 25.0.0+).
+    img_file = module_utils.cfg_get(conf, "scenario", "img_file").strip()
+    if img_file and not os.path.isabs(img_file):
+        full_path = str(tempest_conf.parent.parent / img_file)
+        module_utils.cfg_set(conf, ("scenario", "img_file", full_path))
