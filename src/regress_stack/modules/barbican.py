@@ -98,7 +98,12 @@ def configure_tempest(tempest_conf: pathlib.Path):
     module_utils.cfg_set(
         conf,
         ("service_available", "barbican", "True"),
+        # The enforce_scope flag moved between plugin versions:
+        # Jammy (v1.5.0) reads [barbican_rbac_scope_verification].enforce_scope,
+        # Noble+ (v4.5.0) reads [enforce_scope].barbican. Set both so
+        # ProjectQuotasTest skips correctly on all supported releases.
         ("enforce_scope", "barbican", "True"),
+        ("barbican_rbac_scope_verification", "enforce_scope", "True"),
         *module_utils.dict_to_cfg_set_args(
             "key_manager",
             {
